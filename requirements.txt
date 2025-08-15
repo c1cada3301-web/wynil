@@ -6,4 +6,4 @@ aiohttp==3.12.14
 magic-filter==1.0.12
 mutagen>=1.45.1
 python-dotenv==1.0.0
-Pillow==10.3.0
+Pillow==10.0.0
