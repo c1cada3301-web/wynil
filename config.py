@@ -1,10 +1,10 @@
 ﻿import os
 
 # Токен бота
-API_TOKEN = "7929920502:AAHiDnjAjZPJWUqFMmeegMBxkZFk6aYYYZE"
+API_TOKEN = "ВАШ ТОКЕН"
 
 # ID канала, на который нужно подписаться
-REQUIRED_CHANNEL = "-1002083327630"
+REQUIRED_CHANNEL = "ID CHANNEL" #можете узнать тут https://t.me/GetChatID_IL_BOT
 
 # Временная директория
 TEMP_DIR = "temp"
