@@ -1,0 +1,20 @@
+[0;1;32m●[0m winyl.service - Winyl Bot Service
+     Loaded: loaded (]8;;file://sovietwave.aeza.network/etc/systemd/system/winyl.service/etc/systemd/system/winyl.service]8;;; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: [0;1;32mactive (running)[0m since Mon 2025-06-30 16:42:13 EDT; 3s ago
+   Main PID: 695317 (python)
+      Tasks: 2 (limit: 4614)
+     Memory: 82.6M (peak: 83.0M)
+        CPU: 1.739s
+     CGroup: /system.slice/winyl.service
+             └─[0;38;5;245m695317 /root/winyl/venv/bin/python /root/winyl/Winyl.py[0m
+
+Jun 30 16:42:14 sovietwave.aeza.network python[695317]: 2025-06-30 16:42:14,804 - root - INFO - Временная директория уже существует: temp
+Jun 30 16:42:14 sovietwave.aeza.network python[695317]: 2025-06-30 16:42:14,804 - __main__ - INFO - Инициализация базы данных...
+Jun 30 16:42:14 sovietwave.aeza.network python[695317]: 2025-06-30 16:42:14,809 - db - INFO - Дефолтные промокоды добавлены
+Jun 30 16:42:14 sovietwave.aeza.network python[695317]: 2025-06-30 16:42:14,809 - db - INFO - База данных успешно инициализирована
+Jun 30 16:42:14 sovietwave.aeza.network python[695317]: 2025-06-30 16:42:14,810 - __main__ - INFO - Создание экземпляра бота...
+Jun 30 16:42:14 sovietwave.aeza.network python[695317]: 2025-06-30 16:42:14,838 - __main__ - INFO - Настройка диспетчера...
+Jun 30 16:42:14 sovietwave.aeza.network python[695317]: 2025-06-30 16:42:14,839 - __main__ - INFO - Настройка роутеров...
+Jun 30 16:42:14 sovietwave.aeza.network python[695317]: 2025-06-30 16:42:14,850 - __main__ - INFO - === Бот успешно запущен ===
+Jun 30 16:42:14 sovietwave.aeza.network python[695317]: 2025-06-30 16:42:14,850 - aiogram.dispatcher - INFO - Start polling
+Jun 30 16:42:16 sovietwave.aeza.network python[695317]: 2025-06-30 16:42:16,256 - aiogram.dispatcher - INFO - Run polling for bot @svinyl_bot id=7929920502 - 'Soviet Vinyl'

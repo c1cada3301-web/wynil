@@ -1,97 +1,75 @@
 import logging
 import asyncio
 import os
-import tempfile
+import sys
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
-from config import API_TOKEN
-from handlers import router as handlers_router
+from config import API_TOKEN, TEMP_DIR
+from handlers import setup_routers
 from db import init_db
 from utils import ensure_temp_dir
-
-API_TOKEN = os.getenv("API_TOKEN") or API_TOKEN
-
-async def make_rotating_circle_video_bytes(audio_path, cover_path, start_time=0, duration=60):
-    """
-    Генерирует mp4-видеокружок с помощью ffmpeg, возвращает bytes.
-    Длительность всегда ровно duration секунд.
-    """
-    with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
-        tmp_path = tmp.name
-
-    cmd = [
-        'ffmpeg', '-y',
-        '-ss', str(start_time),
-        '-t', str(duration),
-        '-i', audio_path,
-        '-loop', '1', '-i', cover_path,
-        '-c:v', 'libx264',
-        '-vf', f"scale=512:512,rotate='angle=0.5*t:ow=512:oh=512',format=yuv420p",
-        '-af', f"apad=pad_dur={duration},afade=in:st=0:d=3,afade=out:st={duration-3}:d=3",
-        '-c:a', 'aac',
-        '-b:a', '128k',
-        '-pix_fmt', 'yuv420p',
-        '-profile:v', 'baseline',
-        '-level', '3.0',
-        '-fs', '7M',
-        '-map', '0:a:0',
-        '-map', '1:v:0',
-        # '-shortest',  # Не используем!
-        tmp_path
-    ]
-    logging.info(f"Команда ffmpeg для видео (bytes): {' '.join(cmd)}")
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
-    )
-    _, stderr = await proc.communicate()
-    if proc.returncode == 0:
-        with open(tmp_path, "rb") as f:
-            video_bytes = f.read()
-        os.remove(tmp_path)
-        logging.info("ffmpeg успешно создал видео (bytes)")
-        return video_bytes
-    else:
-        logging.error(f"ffmpeg ошибка: {stderr.decode()}")
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
-        return None
+from concurrent.futures import ThreadPoolExecutor
 
 async def main():
+    # Настройка логирования
     logging.basicConfig(
+        level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        level=logging.INFO
+        stream=sys.stdout
     )
     logger = logging.getLogger(__name__)
 
+    logger.info("=== Запуск бота Winyl ===")
+    logger.info(f"Текущая рабочая директория: {os.getcwd()}")
+    logger.info(f"Путь к временной директории: {TEMP_DIR}")
+    
+    # Создаем временную директорию
+    ensure_temp_dir()
+    
+    # Инициализация БД
     logger.info("Инициализация базы данных...")
     await init_db()
-    logger.info("Создание временной директории...")
-    ensure_temp_dir()
-    logger.info("Создание экземпляра бота и диспетчера...")
-
+    
+    # Создаем бота с дефолтными настройками
+    logger.info("Создание экземпляра бота...")
     bot = Bot(
         token=API_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
-    dp = Dispatcher(storage=MemoryStorage())
-
-    # Подключаем только корневой роутер, который включает всю инфраструктуру
-    dp.include_router(handlers_router)
-
+    
+    # Настраиваем диспетчер
+    logger.info("Настройка диспетчера...")
+    executor = ThreadPoolExecutor(max_workers=3)
+    dp = Dispatcher(storage=MemoryStorage(), executor=executor)
+    
+    # Подключаем роутеры
+    logger.info("Настройка роутеров...")
+    router = setup_routers()
+    dp.include_router(router)
+    
     try:
-        logger.info("Бот запущен")
-        await dp.start_polling(bot)
+        logger.info("=== Бот запущен и готов к работе ===")
+        # Увеличиваем таймаут для long polling
+        await dp.start_polling(bot, timeout=60)
+    except asyncio.CancelledError:
+        logger.info("Получен сигнал завершения работы")
+    except Exception as e:
+        logger.exception("Критическая ошибка в работе бота:")
+        raise
     finally:
+        logger.info("Завершение работы бота...")
         await bot.session.close()
+        executor.shutdown(wait=True)
+        logger.info("Ресурсы освобождены")
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        print("Бот остановлен пользователем")
+    except KeyboardInterrupt:
+        print("\nБот остановлен пользователем")
+        sys.exit(0)
     except Exception as e:
-        print(f"Необработанная ошибка: {e}")
+        logging.error(f"Необработанная ошибка: {e}")
+        sys.exit(1)
