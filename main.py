@@ -2,6 +2,7 @@ import logging
 import asyncio
 import os
 import sys
+import time
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -11,6 +12,18 @@ from handlers import setup_routers
 from handlers.db import init_db
 from handlers.utils import ensure_temp_dir
 from concurrent.futures import ThreadPoolExecutor
+
+async def auto_cleanup_temp():
+    while True:
+        for filename in os.listdir("temp"):
+            file_path = os.path.join("temp", filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+            except Exception as e:
+                print(f"Ошибка удаления {file_path}: {e}")
+        print(f"Автоочистка temp завершена: {time.ctime()}")
+        await asyncio.sleep(3 * 60 * 60)  # 3 часа
 
 async def main():
     # Настройка логирования
@@ -48,7 +61,11 @@ async def main():
     logger.info("Настройка роутеров...")
     router = setup_routers()
     dp.include_router(router)
-    
+
+    # Запускаем автоочистку временной директории
+    asyncio.create_task(auto_cleanup_temp())
+
+    # Запуск бота
     try:
         logger.info("=== Бот запущен и готов к работе ===")
         # Увеличиваем таймаут для long polling
