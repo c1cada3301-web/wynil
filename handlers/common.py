@@ -2,9 +2,9 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from handlers.keyboards import main_menu_kb, back_kb
-from db import get_user, set_subscription, check_access
-from utils import is_user_subscribed
+from .keyboards import main_menu_kb, back_kb
+from .db import get_user, set_subscription, check_access
+from .utils import is_user_subscribed
 import logging
 
 router = Router()

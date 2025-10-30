@@ -7,7 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 from .keyboards import cut_kb, cover_type_kb
 from config import DEFAULT_COVER
-from utils import (
+from .utils import (
     save_audio, 
     save_cover, 
     extract_cover, 

@@ -1,18 +1,12 @@
 ﻿import os
+import dotenv
 
-# Токен бота
-API_TOKEN = "ВАШ ТОКЕН"
+loaded = dotenv.load_dotenv()
 
-# ID канала, на который нужно подписаться
-REQUIRED_CHANNEL = "ID CHANNEL" #можете узнать тут https://t.me/GetChatID_IL_BOT
-
-# Временная директория
-TEMP_DIR = "temp"
-
-# Директория для статических файлов
-ASSETS_DIR = "assets"
-
-# Обложка по умолчанию
+API_TOKEN = os.getenv("API_TOKEN")
+REQUIRED_CHANNEL = os.getenv("REQUIRED_CHANNEL")
+TEMP_DIR = os.getenv("TEMP_DIR", "temp")
+ASSETS_DIR = os.getenv("ASSETS_DIR", "assets")
 DEFAULT_COVER = os.path.join(ASSETS_DIR, "default_cover.jpg")
 
 # Добавьте проверку обязательных параметров

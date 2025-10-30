@@ -10,7 +10,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from PIL import Image, UnidentifiedImageError
 from config import TEMP_DIR, DEFAULT_COVER
-from video import make_rotating_circle_video_bytes
+from .video import make_rotating_circle_video_bytes
 
 # Создаем временную директорию если не существует
 def ensure_temp_dir():

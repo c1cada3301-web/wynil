@@ -1,0 +1,10 @@
+services:
+  wynil-bot:
+    build: .
+    container_name: wynil-bot
+    restart: unless-stopped
+    environment:
+      - API_TOKEN=${API_TOKEN}
+      - REQUIRED_CHANNEL=${REQUIRED_CHANNEL}
+    volumes:
+      - ./temp:/app/temp

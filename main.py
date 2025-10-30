@@ -8,8 +8,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 from config import API_TOKEN, TEMP_DIR
 from handlers import setup_routers
-from db import init_db
-from utils import ensure_temp_dir
+from handlers.db import init_db
+from handlers.utils import ensure_temp_dir
 from concurrent.futures import ThreadPoolExecutor
 
 async def main():
