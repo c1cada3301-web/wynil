@@ -5,7 +5,7 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
-from .keyboards import cut_kb, cover_type_kb, get_main_menu_kb
+from .keyboards import cut_kb, cover_type_kb, main_menu_kb
 from config import DEFAULT_COVER
 from .utils import (
     save_audio, 
@@ -240,10 +240,10 @@ async def start_video_processing(message: Message, state: FSMContext):
         
         await send_result(message, state)
         await delete_previous_messages(message.bot, message.chat.id, state)
-        await message.answer('<tg-emoji emoji-id="5942829115127106836">✅</tg-emoji> Готово! Вы можете создать новый кружок, нажав кнопку ниже.', reply_markup=get_main_menu_kb())
+        await message.answer('<tg-emoji emoji-id="5942829115127106836">✅</tg-emoji> Готово! Вы можете создать новый кружок, нажав кнопку ниже.', reply_markup=main_menu_kb())
     except Exception as e:
         logger.error(f"Ошибка генерации видео: {e}")
         await delete_previous_messages(message.bot, message.chat.id, state)
-        await message.answer("❌ Ошибка генерации видео. Попробуйте другой трек.", reply_markup=get_main_menu_kb())
+        await message.answer("❌ Ошибка генерации видео. Попробуйте другой трек.", reply_markup=main_menu_kb())
     finally:
         await state.clear()
