@@ -284,6 +284,17 @@ async def send_result(message: Message, state):
         
         # Очищаем временные файлы
         await cleanup_temp_files(audio_path, square_cover)
+    except TelegramBadRequest as e:
+        if "VOICE_MESSAGES_FORBIDDEN" in str(e):
+            logging.warning(f"Пользователь запретил голосовые сообщения: {e}")
+            await message.answer(
+                "❌ Не удалось отправить видеокружок.\n\n"
+                "У вас в настройках Telegram запрещена отправка голосовых сообщений и кружков.\n"
+                "Разрешите их: Настройки → Конфиденциальность → Голосовые сообщения."
+            )
+        else:
+            logging.exception("Критическая ошибка в send_result:")
+            await message.answer("❌ Произошла непредвиденная ошибка. Пожалуйста, попробуйте ещё раз.")
     except Exception as e:
         logging.exception("Критическая ошибка в send_result:")
         await message.answer("❌ Произошла непредвиденная ошибка. Пожалуйста, попробуйте ещё раз.")

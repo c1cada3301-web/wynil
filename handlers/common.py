@@ -15,7 +15,7 @@ WELCOME_TEXT = (
     "🌈 <b>Привет! Я помогу тебе создать стильный видеокружок</b>\n\n"
     "✨ Просто нажми <b>«Создать кружок»</b> и загрузи свой трек\n\n"
     "💖 <b>Бот абсолютно бесплатный</b>, буду рад вашей поддержке сервера\n\n"
-    "🎛️ Проект лейбла <b>Sovietwave Records</b> — @swr24"
+    "<tg-emoji emoji-id=\"5325881587319982195\">🎸</tg-emoji> Проект лейбла <b>Sovietwave Records</b> — @swr24"
 )
 
 async def check_subscription_and_send_welcome(message: Message):

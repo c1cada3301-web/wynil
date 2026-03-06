@@ -60,7 +60,7 @@ async def make_rotating_circle_video_bytes(
     
     # Рассчитываем параметры затухания аудио
     fade_in_duration = min(3, duration)  # Не более длительности самого аудио
-    fade_out_start = max(0, duration - 3)  # Начинаем затухание за 3 секунды до конца
+    fade_out_start = max(0, duration - 2)  # Начинаем затухание за 2 секунды до конца
     
     # Формируем команду ffmpeg (рабочая версия)
     cmd = build_ffmpeg_cmd(
