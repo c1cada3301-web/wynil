@@ -74,6 +74,7 @@ async def make_rotating_circle_video_bytes(
         "-vf", "scale=512:512:force_original_aspect_ratio=1,pad=512:512:(ow-iw)/2:(oh-ih)/2,rotate='angle=0.5*t:ow=512:oh=512',format=yuv420p",
         "-af", f"afade=t=in:st=0:d={fade_in_duration},afade=t=out:st={fade_out_start}:d=1",
         "-c:a", "aac", "-b:a", "128k",
+        "-crf", "25",
         "-pix_fmt", "yuv420p",
         "-profile:v", "baseline",
         "-level", "4.2",
