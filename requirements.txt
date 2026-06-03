@@ -3,6 +3,7 @@ aiosqlite
 ffmpeg-python
 aiofiles
 aiohttp
+aiohttp-socks
 magic-filter
 mutagen
 python-dotenv

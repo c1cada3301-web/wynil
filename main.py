@@ -5,6 +5,7 @@ import sys
 import time
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.client.default import DefaultBotProperties
 from config import API_TOKEN, TEMP_DIR
@@ -12,6 +13,19 @@ from handlers import setup_routers
 from handlers.db import init_db
 from handlers.utils import ensure_temp_dir
 from concurrent.futures import ThreadPoolExecutor
+
+BOT_API_TIMEOUT = 10
+
+def _make_bot(token: str) -> Bot:
+    # Telegram API ходит через прокси (VLESS) — берём из ALL_PROXY/HTTPS_PROXY.
+    # aiogram/aiohttp не подхватывает эти переменные сами, проксируем явно.
+    proxy = os.getenv("ALL_PROXY") or os.getenv("HTTPS_PROXY")
+    session = AiohttpSession(proxy=proxy, timeout=BOT_API_TIMEOUT)
+    return Bot(
+        token=token,
+        session=session,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML, link_preview_is_disabled=True),
+    )
 
 async def auto_cleanup_temp():
     while True:
@@ -47,10 +61,11 @@ async def main():
     
     # Создаем бота с дефолтными настройками
     logger.info("Создание экземпляра бота...")
-    bot = Bot(
-        token=API_TOKEN,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
-    )
+    bot = _make_bot(API_TOKEN)
+    if bot.session.proxy:
+        logger.info(f"Используется прокси для Telegram API: {bot.session.proxy}")
+    else:
+        logger.info("Прокси для Telegram API не задан — используется прямое соединение")
     
     # Настраиваем диспетчер
     logger.info("Настройка диспетчера...")
