@@ -5,3 +5,5 @@ services:
     restart: unless-stopped
     volumes:
       - ./temp:/app/temp
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
