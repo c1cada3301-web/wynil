@@ -14,10 +14,10 @@ from handlers.db import init_db
 from handlers.utils import ensure_temp_dir
 from concurrent.futures import ThreadPoolExecutor
 
-BOT_API_TIMEOUT = 10
+BOT_API_TIMEOUT = int(os.getenv("BOT_API_TIMEOUT", "120"))
 
 def _make_bot(token: str) -> Bot:
-    # Telegram API ходит через прокси (VLESS) — берём из ALL_PROXY/HTTPS_PROXY.
+    # Telegram API и скачивание файлов (api.telegram.org + CDN) — через ALL_PROXY/HTTPS_PROXY.
     # aiogram/aiohttp не подхватывает эти переменные сами, проксируем явно.
     proxy = os.getenv("ALL_PROXY") or os.getenv("HTTPS_PROXY")
     session = AiohttpSession(proxy=proxy, timeout=BOT_API_TIMEOUT)

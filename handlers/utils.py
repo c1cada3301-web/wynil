@@ -53,7 +53,7 @@ async def save_audio(message: Message) -> str:
         logging.info(f"Аудио сохранено: {file_path}")
         return file_path
     except Exception as e:
-        logging.error(f"Ошибка при загрузке аудио: {e}")
+        logging.error(f"Ошибка при загрузке аудио ({type(e).__name__}): {e}")
         raise RuntimeError("Не удалось загрузить аудиофайл")
 
 # Извлекаем обложку из аудиофайла

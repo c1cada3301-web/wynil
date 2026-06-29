@@ -3,6 +3,8 @@ services:
     build: .
     container_name: wynil-bot
     restart: unless-stopped
+    env_file:
+      - .env
     volumes:
       - ./temp:/app/temp
     extra_hosts:
