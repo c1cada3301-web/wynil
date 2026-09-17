@@ -13,8 +13,14 @@ from .utils import (
     extract_cover, 
     send_result, 
     convert_to_square,
-    cut_audio_async
+    cut_audio_async,
+    remove_temp_file,
+    get_audio_duration
 )
+from .errors import report_error, IMAGE_MESSAGE, GENERATION_MESSAGE
+
+# Фрагмент короче этого смысла не имеет
+MIN_FRAGMENT_SEC = 5
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -68,8 +74,7 @@ async def start_audio(callback: CallbackQuery, state: FSMContext):
         await save_and_track_message(msg, state)
         await state.set_state(AudioFSM.waiting_for_audio)
     except Exception as e:
-        logger.error(f"Ошибка в start_audio: {e}")
-        await callback.message.answer("❌ Произошла ошибка. Пожалуйста, попробуйте ещё раз.")
+        await callback.message.answer(report_error("Начало сценария", e))
 
 @router.message(
     AudioFSM.waiting_for_audio, 
@@ -97,6 +102,7 @@ async def handle_audio(message: Message, state: FSMContext):
         
         await state.update_data(
             audio_path=mp3_path,
+            source_audio_path=mp3_path,
             track_info=track_info
         )
         
@@ -107,24 +113,42 @@ async def handle_audio(message: Message, state: FSMContext):
         await save_and_track_message(msg, state)
         await state.set_state(AudioFSM.waiting_for_cut)
     except Exception as e:
-        logger.error(f"Ошибка обработки аудио: {e}")
+        text = report_error("Приём аудиофайла", e)
         await delete_previous_messages(message.bot, message.chat.id, state)
-        await message.answer("❌ Ошибка обработки файла. Попробуйте другой файл.")
+        await message.answer(text)
         await state.clear()
 
 @router.callback_query(AudioFSM.waiting_for_cut, F.data.startswith("cut_"))
 async def handle_cut(callback: CallbackQuery, state: FSMContext):
     try:
-        await callback.answer()
-        await delete_previous_messages(callback.bot, callback.message.chat.id, state)
-        
         data = await state.get_data()
         start_sec = int(callback.data.split("_")[1])
+        source_path = data.get('source_audio_path') or data.get('audio_path')
+        
+        # Трек может быть короче выбранной точки — говорим об этом сразу,
+        # не доводя до непонятной ошибки на генерации
+        track_duration = get_audio_duration(source_path) if source_path else None
+        if track_duration is not None and start_sec > track_duration - MIN_FRAGMENT_SEC:
+            await callback.answer(
+                f"Трек длится {int(track_duration)} сек — выберите точку раньше",
+                show_alert=True
+            )
+            return
+        
+        await callback.answer()
+        await delete_previous_messages(callback.bot, callback.message.chat.id, state)
         
         processing_msg = await callback.message.answer("✂️ Обрезаю аудио...")
         await save_and_track_message(processing_msg, state)
         
-        cut_mp3_path = await cut_audio_async(data['audio_path'], start_sec)
+        # Режем всегда от оригинала: иначе возврат к выбору точки
+        # обрезал бы уже обрезанный фрагмент
+        previous_cut = data.get('audio_path')
+        
+        cut_mp3_path = await cut_audio_async(source_path, start_sec)
+        
+        if previous_cut and previous_cut != source_path and previous_cut != cut_mp3_path:
+            await remove_temp_file(previous_cut)
         
         cover_msg = await processing_msg.edit_text("🖼️ Извлекаю обложку...")
         cover_path = await extract_cover(cut_mp3_path)
@@ -148,10 +172,40 @@ async def handle_cut(callback: CallbackQuery, state: FSMContext):
         await save_and_track_message(cover_menu, state)
         await state.set_state(AudioFSM.waiting_for_cover)
     except Exception as e:
-        logger.error(f"Ошибка в handle_cut: {e}")
+        text = report_error("Обрезка аудио", e)
         await delete_previous_messages(callback.bot, callback.message.chat.id, state)
-        await callback.message.answer("❌ Ошибка обработки. Пожалуйста, попробуйте ещё раз.")
+        await callback.message.answer(text)
         await state.clear()
+
+@router.callback_query(AudioFSM.waiting_for_cut, F.data == "back_to_audio")
+async def back_to_audio_upload(callback: CallbackQuery, state: FSMContext):
+    """Назад с выбора точки обрезки — к загрузке файла, без сброса сценария"""
+    try:
+        await callback.answer()
+        msg = await callback.message.edit_text(
+            "🎵 Пришлите mp3 или m4a файл с обложкой или аудио сообщение."
+        )
+        await save_and_track_message(msg, state)
+        await state.set_state(AudioFSM.waiting_for_audio)
+    except Exception as e:
+        await callback.message.answer(report_error("Возврат к загрузке файла", e))
+
+@router.callback_query(AudioFSM.waiting_for_cover, F.data == "back_to_cut")
+async def back_to_cut_menu(callback: CallbackQuery, state: FSMContext):
+    """Назад с выбора обложки — к выбору точки обрезки, трек сохраняется"""
+    try:
+        await callback.answer()
+        data = await state.get_data()
+        track_info = data.get('track_info', '🎵 Ваш трек')
+        
+        msg = await callback.message.edit_text(
+            f"{track_info}\n\nВыберите точку обрезки:",
+            reply_markup=cut_kb()
+        )
+        await save_and_track_message(msg, state)
+        await state.set_state(AudioFSM.waiting_for_cut)
+    except Exception as e:
+        await callback.message.answer(report_error("Возврат к выбору обрезки", e))
 
 @router.callback_query(AudioFSM.waiting_for_custom_cover, F.data == "back_to_cover_menu")
 async def back_to_cover_menu(callback: CallbackQuery, state: FSMContext):
@@ -164,8 +218,7 @@ async def back_to_cover_menu(callback: CallbackQuery, state: FSMContext):
         await save_and_track_message(cover_menu, state)
         await state.set_state(AudioFSM.waiting_for_cover)
     except Exception as e:
-        logger.error(f"Ошибка в back_to_cover_menu: {e}")
-        await callback.message.answer("❌ Ошибка. Пожалуйста, попробуйте ещё раз.")
+        await callback.message.answer(report_error("Возврат к выбору обложки", e))
 
 @router.callback_query(AudioFSM.waiting_for_cover, F.data == "cover_custom")
 async def handle_custom_cover(callback: CallbackQuery, state: FSMContext):
@@ -184,8 +237,7 @@ async def handle_custom_cover(callback: CallbackQuery, state: FSMContext):
         await save_and_track_message(msg, state)
         await state.set_state(AudioFSM.waiting_for_custom_cover)
     except Exception as e:
-        logger.error(f"Ошибка в handle_custom_cover: {e}")
-        await callback.message.answer("❌ Ошибка. Пожалуйста, попробуйте ещё раз.")
+        await callback.message.answer(report_error("Запрос своей обложки", e))
 
 @router.callback_query(AudioFSM.waiting_for_cover, F.data == "cover_default")
 async def handle_default_cover(callback: CallbackQuery, state: FSMContext):
@@ -195,8 +247,7 @@ async def handle_default_cover(callback: CallbackQuery, state: FSMContext):
         await state.update_data(cover_path=DEFAULT_COVER)
         await start_video_processing(callback.message, state)
     except Exception as e:
-        logger.error(f"Ошибка в handle_default_cover: {e}")
-        await callback.message.answer("❌ Ошибка. Пожалуйста, попробуйте ещё раз.")
+        await callback.message.answer(report_error("Стандартная обложка", e))
 
 @router.callback_query(AudioFSM.waiting_for_cover, F.data == "cover_file")
 async def handle_file_cover(callback: CallbackQuery, state: FSMContext):
@@ -205,8 +256,7 @@ async def handle_file_cover(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
         await start_video_processing(callback.message, state)
     except Exception as e:
-        logger.error(f"Ошибка в handle_file_cover: {e}")
-        await callback.message.answer("❌ Ошибка. Пожалуйста, попробуйте ещё раз.")
+        await callback.message.answer(report_error("Обложка из файла", e))
 
 @router.message(AudioFSM.waiting_for_custom_cover, F.photo)
 async def handle_photo_cover(message: Message, state: FSMContext):
@@ -222,9 +272,9 @@ async def handle_photo_cover(message: Message, state: FSMContext):
         await state.update_data(cover_path=square_cover)
         await start_video_processing(message, state)
     except Exception as e:
-        logger.error(f"Ошибка обработки обложки: {e}")
+        text = report_error("Обработка обложки", e, fallback=IMAGE_MESSAGE)
         await delete_previous_messages(message.bot, message.chat.id, state)
-        error_msg = await message.answer("❌ Ошибка обработки изображения. Попробуйте другое.")
+        error_msg = await message.answer(text)
         await save_and_track_message(error_msg, state)
 
 async def start_video_processing(message: Message, state: FSMContext):
@@ -242,8 +292,8 @@ async def start_video_processing(message: Message, state: FSMContext):
         await delete_previous_messages(message.bot, message.chat.id, state)
         await message.answer('<tg-emoji emoji-id="5942829115127106836">✅</tg-emoji> Готово! Вы можете создать новый кружок, нажав кнопку ниже.', reply_markup=main_menu_kb())
     except Exception as e:
-        logger.error(f"Ошибка генерации видео: {e}")
+        text = report_error("Генерация видеокружка", e, fallback=GENERATION_MESSAGE)
         await delete_previous_messages(message.bot, message.chat.id, state)
-        await message.answer("❌ Ошибка генерации видео. Попробуйте другой трек.", reply_markup=main_menu_kb())
+        await message.answer(text, reply_markup=main_menu_kb())
     finally:
         await state.clear()

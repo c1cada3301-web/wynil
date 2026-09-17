@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import io
+import mutagen
 from mutagen.mp3 import MP3
 from mutagen.id3 import ID3, APIC
 from mutagen.mp4 import MP4, MP4Cover
@@ -11,17 +12,10 @@ from aiogram.exceptions import TelegramBadRequest
 from PIL import Image, UnidentifiedImageError
 from config import TEMP_DIR, DEFAULT_COVER
 from .video import make_rotating_circle_video_bytes, MAX_VIDEO_NOTE_BYTES
-
-try:
-    from aiogram.exceptions import TelegramEntityTooLarge
-except ImportError:  # На старых версиях aiogram этого класса нет
-    class TelegramEntityTooLarge(Exception):
-        pass
-
-# Сообщение, когда кружок не удалось уместить в лимит Telegram
-TOO_LARGE_MESSAGE = (
-    "❌ Видеокружок получился слишком большим для Telegram.\n\n"
-    "Попробуйте выбрать другой фрагмент трека или обложку попроще."
+from .errors import (
+    report_error,
+    TOO_LARGE_MESSAGE,
+    GENERATION_MESSAGE,
 )
 
 # Создаем временную директорию если не существует
@@ -184,8 +178,13 @@ async def is_user_subscribed(bot: Bot, user_id: int, channel: str) -> bool:
     try:
         member = await bot.get_chat_member(channel, user_id)
         return member.status in ("member", "administrator", "creator")
-    except TelegramBadRequest:
-        logging.warning(f"Проверка подписки не удалась для пользователя {user_id}")
+    except TelegramBadRequest as e:
+        # Частая причина: бот не админ канала, тогда Telegram отвечает
+        # "member list is inaccessible" и подписка выглядит отсутствующей
+        logging.warning(
+            f"Проверка подписки не удалась для пользователя {user_id} "
+            f"в чате {channel}: {e}"
+        )
         return False
     except Exception as e:
         logging.error(f"Ошибка при проверке подписки: {e}")
@@ -223,6 +222,18 @@ def get_track_metadata(audio_path: str) -> dict:
     except Exception as e:
         logging.error(f"Ошибка получения метаданных: {e}")
         return {"artist": "", "title": ""}
+
+# Узнаём длительность трека
+def get_audio_duration(audio_path: str) -> float | None:
+    """Длительность аудио в секундах. None — если определить не удалось."""
+    try:
+        audio = mutagen.File(audio_path)
+        if audio is None or audio.info is None:
+            return None
+        return float(audio.info.length)
+    except Exception as e:
+        logging.warning(f"Не удалось определить длительность {audio_path}: {e}")
+        return None
 
 # Конвертируем обложку в квадрат 512x512
 async def convert_to_square(image_path: str) -> str:
@@ -290,9 +301,7 @@ async def send_result(message: Message, state):
         # Отправляем результат
         if not video_bytes:
             logging.error("Не удалось сгенерировать видеокружок")
-            await message.answer(
-                "❌ Не удалось собрать видеокружок. Попробуйте другой файл или фрагмент."
-            )
+            await message.answer(GENERATION_MESSAGE)
             await cleanup_temp_files(audio_path, square_cover)
             return
 
@@ -310,27 +319,8 @@ async def send_result(message: Message, state):
 
         # Очищаем временные файлы
         await cleanup_temp_files(audio_path, square_cover)
-    except TelegramEntityTooLarge as e:
-        logging.error(f"Telegram отклонил кружок по размеру: {e}")
-        await message.answer(TOO_LARGE_MESSAGE)
-    except TelegramBadRequest as e:
-        error_text = str(e)
-        if "too large" in error_text.lower() or "Request Entity Too Large" in error_text:
-            logging.error(f"Telegram отклонил кружок по размеру: {e}")
-            await message.answer(TOO_LARGE_MESSAGE)
-        elif "VOICE_MESSAGES_FORBIDDEN" in error_text:
-            logging.warning(f"Пользователь запретил голосовые сообщения: {e}")
-            await message.answer(
-                "❌ Не удалось отправить видеокружок.\n\n"
-                "У вас в настройках Telegram запрещена отправка голосовых сообщений и кружков.\n"
-                "Разрешите их: Настройки → Конфиденциальность → Голосовые сообщения."
-            )
-        else:
-            logging.exception("Критическая ошибка в send_result:")
-            await message.answer("❌ Произошла непредвиденная ошибка. Пожалуйста, попробуйте ещё раз.")
     except Exception as e:
-        logging.exception("Критическая ошибка в send_result:")
-        await message.answer("❌ Произошла непредвиденная ошибка. Пожалуйста, попробуйте ещё раз.")
+        await message.answer(report_error("Отправка видеокружка", e))
 
 # Очищаем временные файлы
 async def cleanup_temp_files(audio_path: str, cover_path: str):

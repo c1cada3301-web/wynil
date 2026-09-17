@@ -23,7 +23,7 @@ def cut_kb():
         InlineKeyboardButton(text="01:30", callback_data="cut_90"),
         InlineKeyboardButton(text="02:00", callback_data="cut_120"),
     )
-    builder.row(InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_menu"))
+    builder.row(InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_audio"))
     return builder.as_markup()
 
 def cover_type_kb():
@@ -37,7 +37,7 @@ def cover_type_kb():
     builder.row(
         InlineKeyboardButton(text="🔄 Стандартная", callback_data="cover_default"),
     )
-    builder.row(InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_menu"))
+    builder.row(InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_cut"))
     return builder.as_markup()
 
 def back_kb():

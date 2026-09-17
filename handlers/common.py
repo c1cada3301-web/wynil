@@ -5,6 +5,7 @@ from aiogram.fsm.context import FSMContext
 from .keyboards import main_menu_kb, back_kb
 from .db import get_user, set_subscription, check_access
 from .utils import is_user_subscribed
+from .errors import report_error
 import logging
 
 router = Router()
@@ -42,9 +43,8 @@ async def check_subscription_and_send_welcome(message: Message):
         return True
         
     except Exception as e:
-        logger.error(f"Ошибка при обработке /start: {e}")
         await message.answer(
-            "⚠️ Произошла ошибка при запуске бота. Пожалуйста, попробуйте позже.",
+            report_error("Запуск бота по /start", e),
             reply_markup=main_menu_kb()
         )
         return False
