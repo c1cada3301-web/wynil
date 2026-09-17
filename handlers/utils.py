@@ -10,7 +10,19 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from PIL import Image, UnidentifiedImageError
 from config import TEMP_DIR, DEFAULT_COVER
-from .video import make_rotating_circle_video_bytes
+from .video import make_rotating_circle_video_bytes, MAX_VIDEO_NOTE_BYTES
+
+try:
+    from aiogram.exceptions import TelegramEntityTooLarge
+except ImportError:  # На старых версиях aiogram этого класса нет
+    class TelegramEntityTooLarge(Exception):
+        pass
+
+# Сообщение, когда кружок не удалось уместить в лимит Telegram
+TOO_LARGE_MESSAGE = (
+    "❌ Видеокружок получился слишком большим для Telegram.\n\n"
+    "Попробуйте выбрать другой фрагмент трека или обложку попроще."
+)
 
 # Создаем временную директорию если не существует
 def ensure_temp_dir():
@@ -276,16 +288,37 @@ async def send_result(message: Message, state):
         )
         
         # Отправляем результат
-        if video_bytes:
-            video_file = BufferedInputFile(video_bytes, filename="video_note.mp4")
-            await message.answer_video_note(video_file)
-        else:
-            raise RuntimeError("Ошибка генерации видеокружка")
-        
+        if not video_bytes:
+            logging.error("Не удалось сгенерировать видеокружок")
+            await message.answer(
+                "❌ Не удалось собрать видеокружок. Попробуйте другой файл или фрагмент."
+            )
+            await cleanup_temp_files(audio_path, square_cover)
+            return
+
+        # Страховка: Telegram отклонит кружок больше лимита
+        if len(video_bytes) > MAX_VIDEO_NOTE_BYTES:
+            logging.error(
+                f"Видеокружок превышает лимит: {len(video_bytes)} > {MAX_VIDEO_NOTE_BYTES}"
+            )
+            await message.answer(TOO_LARGE_MESSAGE)
+            await cleanup_temp_files(audio_path, square_cover)
+            return
+
+        video_file = BufferedInputFile(video_bytes, filename="video_note.mp4")
+        await message.answer_video_note(video_file)
+
         # Очищаем временные файлы
         await cleanup_temp_files(audio_path, square_cover)
+    except TelegramEntityTooLarge as e:
+        logging.error(f"Telegram отклонил кружок по размеру: {e}")
+        await message.answer(TOO_LARGE_MESSAGE)
     except TelegramBadRequest as e:
-        if "VOICE_MESSAGES_FORBIDDEN" in str(e):
+        error_text = str(e)
+        if "too large" in error_text.lower() or "Request Entity Too Large" in error_text:
+            logging.error(f"Telegram отклонил кружок по размеру: {e}")
+            await message.answer(TOO_LARGE_MESSAGE)
+        elif "VOICE_MESSAGES_FORBIDDEN" in error_text:
             logging.warning(f"Пользователь запретил голосовые сообщения: {e}")
             await message.answer(
                 "❌ Не удалось отправить видеокружок.\n\n"
