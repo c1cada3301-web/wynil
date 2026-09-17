@@ -9,3 +9,11 @@ services:
       - ./temp:/app/temp
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks:
+      # Сеть, в которой живёт sing-box: без неё имя прокси не резолвится
+      - cargly_hub
+
+networks:
+  cargly_hub:
+    external: true
+    name: cargly_hub_default
